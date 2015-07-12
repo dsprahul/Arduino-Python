@@ -1,87 +1,125 @@
-PyMata
+Python Script for Arduino IDE
 ======
-PyMata is a high performance, multi-threaded, non-blocking Python client for the Firmata Protocol that supports
-the complete StandardFirmata protocol.
+Arduino code import tool for Python based on [Firmata protocol](https://github.com/firmata/arduino)  and [PyMata](https://github.com/MrYsLab/PyMata)
 
 
-##Major features
-* __Implements the entire Firmata 2.4.1 protocol.__
-* __Python 2.7+ and Python 3.4+__ compatibility through a shared code set. (If you are running Python 3.4 on Linux, please see note below).
-* Easy to use and intuitive __API__. You can view the [PyMata API Documentation here](http://htmlpreview.github.com/?https://github.com/MrYsLab/PyMata/blob/master/documentation/html/PyMata.pymata.PyMata-class.html) or view in the Documentation/html directory.
-* Custom support for __stepper motors, Sonar Ping Devices (HC-SRO4), Piezo devices and Rotary Encoders__.
-* __Wiring diagrams__ are provided for all examples in the examples directory.
-* Digial and Analog __Transient Signal Monitoring Via Data Latches:__
-  * They provide "one-shot" notification when either a digital or analog pin meets a user defined threshold.
-  * Analog latches compare each data change to a user specified value.
-    * Comparison operators are <, >, <= and >=
-  * Digital latches compare a data change to either a high or low, specified by the user.
-  * Latches can easily be re-armed to detect the next transient data change.
-  * Latches can be either manually read or a callback can be associated with a latch for immediate notification.
-* Optional __callbacks__ provide asynchronous notification of data updates.
-
-## Callbacks
-Check out the example code on the [wiki](https://github.com/MrYsLab/PyMata/wiki).
-  * Digital input pins.
-  * Analog input pins.
-  * Encoder changes.
-  * I2C read data changes.
-  * SONAR (HC-SR04) distance changes.
-  * Analog latch condition achieved.
-  * Digital latch condition achieved.
-  * Callbacks return data reports in a single list format.
-  * Polling methods and callbacks are available simultaneously and can be used in a mixed polled/callback environment.
-  * Callbacks return data in a single list.
-  
-### The callback data return values
-  
-| Callback Type | List Element 0 | List Element 1 | List Element 2 | List Element 3 |
-| ------------- | -------------- | -------------- | -------------- | -------------- |
-| Analog| ANALOG MODE|Pin Number|Data Value|Not Applicable
-| Digital|DIGITAL MODE|Pin Number|Data Value|Not Applicable
-|I2C|I2C MODE|I2C Device Address|Data Value|Not Applicable
-|Sonar|Trigger Pin|Distance in Centimeters|Not Applicable|Not Applicatble
-| Encoder|Encoder MODE|Pin Number|Data Value|Not Applicable
-| Latched Analog| LATCHED ANALOG MODE|Pin Number|Data Value|Time Stamp
-| Latched Digital|LATCHED DIGITAL MODE|Pin Number|Data Value|Time Stamp
+## Overview:
+The host computer and Arduino will communicate via Firmata protocol.
+Firmware available in 'ArduinoSketch' folder should be loaded on to Arduino.
+PyMata should be installed next as per instructions provided is 'documentaion' folder.
+Arduino Sketches should be written in 'Arduino_python_ide.py'.
 
 
-
-## Control-C Signal Handler
-Below is a sample Control-C signal handler that can be added to a PyMata Application.
-It suppresses exceptions being reported as a result of the user entering a Control-C to abort the application.
-
-```python
+## Interface:
+```python 
+import numpy as np
+import time
+import math
+import serial
 import sys
 import signal
-# followed by another imports your application requires
+from PyMata.pymata import PyMata
 
+
+# ... initiating Arduino ...
 # create a PyMata instance
-# set the COM port string specifically for your platform
 board = PyMata("/dev/ttyACM0")
 
-# signal handler function called when Control-C occurs
-def signal_handler(signal, frame):
+# ... Basis definitions for Stepper, servo, analog/digital io ... 
+
+# Servo
+def servo_init(SERVO_MOTOR) :
+  	# send the arduino a firmata reset
+	board.reset()
+	# servo attached to this pin
+	SERVO_MOTOR = 5
+	# configure the servo
+	board.servo_config(SERVO_MOTOR)
+
+def servo(SERVO_MOTOR, angle):
+	# move the servo to 'angle' degrees
+	board.analog_write(SERVO_MOTOR, angle)
+
+# Stepper
+def stepper_init(N):
+	# send the arduino a firmata reset
+	board.reset()
+	# configure the stepper to use pins 9.10,11,12 and specify 'N' steps per revolution
+	firmata.stepper_config(N, [12, 11, 10, 9])
+	time.sleep(.5)
+	# ask Arduino to return the stepper library version number to PyMata
+	firmata.stepper_request_library_version()
+	time.sleep(.5)
+	print("Stepper Library Version",)
+	print(firmata.get_stepper_version())
+
+def stepper(speed,n):
+	# move motor #0 'n' steps forward at a speed of 'speed'
+	firmata.stepper_step(speed, n)
+
+# Callback function (temp)
+force = 0
+def print_analog(data):
+	global force
+	force = data[2]
+	
+	
+	
+
+# digitalWrite()
+def digitalWrite(BOARD_LED, val) :
+	# Setting pinMode for pin BOARD_LED
+	board.set_pin_mode(BOARD_LED, board.OUTPUT, board.DIGITAL)
+	# Set the output to val
+	board.digital_write(BOARD_LED, val)
+
+# analogRead()
+def analog_init(analogPin) :
+	board.set_pin_mode(analogPin, board.INPUT, board.ANALOG)
+
+def analogRead( analogPin):
+	force = board.analog_read( analogPin)
+	return force
+
+# delay()
+def delay(num) :
+	num = float (num)
+	time.sleep(num/1000.0)
+
+# handler definition
+def signal_handler(sig, frame):
     print('You pressed Ctrl+C!!!!')
-    if board != None:
+    if board is not None:
         board.reset()
     sys.exit(0)
 
-# listen for SIGINT
+# And throw error if necessary 
 signal.signal(signal.SIGINT, signal_handler)
 
-# Your Application Continues Below This Point
-```
-
-## Misc
-- Want to extend PyMata? See [Our Instructables Article](http://www.instructables.com/id/Going-Beyond-StandardFirmata-Adding-New-Device-Sup/) explaining how stepper motor support was added. Use it as a guide to customize PyMata for your own needs.
-- [Check Out Mr. Y's Blog Here](http://mryslab.blogspot.com/) for all the latest news!
 
 
-## Special Note For Linux Users Wishing to Use Python 3.4
-Python 3.4 (CPython) for Linux appears to run slower than Python 2.7.
-We will be investigating further and monitoring for a solution.
-The problem has been reported to python.org and may be tracked here: [http://bugs.python.org/issue23324] (http://bugs.python.org/issue23324)
 
-A workaround is to use the [PyPy](http://doc.pypy.org/en/latest/release-pypy3-2.4.0.html) interpreter
 
-There are no performance issues between Python 2.7 and Python 3.4 when running Windows.
+# ... Write your Arduino Sketch in infinite loop here ...
+
+# .....!!!!! Setup() here !!!!!.....
+servo_init(5)
+analog_init(1)
+delay(100)
+
+
+
+
+# .....!!!!! loop() here !!!!!.....
+print "Entering loop(), get ready for some action "
+while (True) :
+ 
+ # Blink example
+ digitialWrite(13,1)
+ delay(1000) # time in ms, just like as in Arduino IDE
+ digitialWrite(13,0)
+ delay(1000)
+ 
+ 
+
+		
